@@ -1,0 +1,32 @@
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+.sketch-picker {
+  position: fixed;
+  z-index: 1;
+  top: 16px;
+  left: 16px;
+  padding: 8px 10px;
+  color: #222;
+  background: rgba(255, 255, 255, 0.9);
+  font: 14px sans-serif;
+}
+
+.sketch-picker select {
+  margin-left: 8px;
+  font: inherit;
+}
+
+.sketch-picker input[type="color"] {
+  width: 28px;
+  height: 24px;
+  margin-left: 8px;
+  padding: 0;
+  vertical-align: middle;
+}
+
+canvas {
+  display: block;
+}

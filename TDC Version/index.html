@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.1/p5.js"></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/opentype.js/1.3.4/opentype.min.js
+"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.1/addons/p5.sound.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/p5.capture@1.6.1/dist/p5.capture.umd.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="style.css">
+  <meta charset="utf-8" />
+
+</head>
+
+<body>
+  <label class="sketch-picker" for="sketch-select">
+    选择效果
+    <select id="sketch-select">
+      <option value="circle-tri">circle-tri</option>
+      <option value="cloud">cloud</option>
+      <option value="ellipse">ellipse</option>
+      <option value="tri">tri</option>
+      <option value="grass">grass</option>
+    </select>
+    背景
+    <input id="background-color" type="color" value="#dcdcdc" aria-label="背景颜色">
+  </label>
+
+  <main></main>
+
+  <script>
+    const sketches = ["circle-tri", "cloud", "ellipse", "tri", "grass"];
+    const params = new URLSearchParams(window.location.search);
+    const selectedSketch = sketches.includes(params.get("sketch"))
+      ? params.get("sketch")
+      : sketches[0];
+    const sketchSelect = document.getElementById("sketch-select");
+    const backgroundColor = document.getElementById("background-color");
+    const savedBackgroundColor = localStorage.getItem("canvasBackgroundColor");
+
+    if (savedBackgroundColor) {
+      backgroundColor.value = savedBackgroundColor;
+    }
+    window.canvasBackgroundColor = backgroundColor.value;
+    backgroundColor.addEventListener("input", (event) => {
+      window.canvasBackgroundColor = event.target.value;
+      localStorage.setItem("canvasBackgroundColor", event.target.value);
+    });
+
+    sketchSelect.value = selectedSketch;
+    sketchSelect.addEventListener("change", (event) => {
+      window.location.search = `?sketch=${encodeURIComponent(event.target.value)}`;
+    });
+
+    for (const file of ["path.js", "vehicle.js", "sketch.js"]) {
+      const script = document.createElement("script");
+      script.src = `${selectedSketch}/${file}`;
+      document.body.appendChild(script);
+    }
+
+    window.addEventListener("keydown", (event) => {
+      if (event.key.toLowerCase() !== "c" || event.repeat) return;
+
+      const capture = P5Capture.getInstance();
+      if (capture.state === "idle") {
+        capture.start({ duration: 300 });
+      } else {
+        capture.stop();
+      }
+    });
+  </script>
+</body>
+
+</html>

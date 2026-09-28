@@ -1,0 +1,160 @@
+let SizeF = 1;
+
+let paths = [];
+let debug = false;
+let vehicles = [];
+let fontSize = 700*SizeF;
+let font;
+let pathCol;
+let buffer = 100;
+
+function preload() {
+  //font = loadFont("/assets/Inter_18pt-Black.ttf");
+  //font = loadFont("/assets/SpaceMono-Bold.ttf");
+  font = loadFont("assets/MetaballsTrial-Bold.otf");
+}
+
+function setup() {
+  createCanvas(1170*SizeF, 1650*SizeF);
+
+  newPaths(); // Generate multiple paths
+  
+  let totalLength = paths.reduce((sum, p) => sum + p.getLength(), 0);
+  let totalVehicles = 280;
+  for (let path of paths) {
+    let portion = path.getLength() / totalLength;
+    let count = floor(portion * totalVehicles);
+    for (let i = 0; i < count; i++) {
+      newVehicle(random(-buffer, width+buffer), random(-buffer, height+buffer), path);
+    }
+  }
+  pathCol = random(255);
+}
+
+function draw() {
+  background("#dcddde");
+
+    noStroke();
+  fill(255);
+  square(200, 200, 300);
+  square(200, 600, 150);
+
+  square(700, 200, 300);
+  square(700, 400, 350);
+
+  square(700, 900, 300);
+  square(700, 1100, 350);
+
+  square(200, 900, 150);
+  square(200, 1100, 150);
+  square(400, 1100, 150);
+  square(200, 1300, 150);
+  
+  for (let p of paths) {
+    p.display(pathCol);
+  }
+
+  for (let v of vehicles) {
+    v.applyBehaviors(vehicles, v.assignedPath);
+    v.run();
+  }
+}
+
+function keyPressed() {
+  if (key == "d") debug = !debug;
+}
+
+function newPaths() {
+  let lines = "PA\ntH".split("\n");
+  let lineSpacing = fontSize * 1.1;
+  let letterSpacing = fontSize * 0.2; // You can adjust this!
+
+  let points = collectTextPoints(lines, lineSpacing, letterSpacing);
+  let [offsetX, offsetY] = getCenteringOffsets(points);
+
+  createPathsFromPoints(points, offsetX, offsetY);
+}
+
+function collectTextPoints(lines, lineSpacing, letterSpacing) {
+  let allPoints = [];
+  
+  for (let i = 0; i < lines.length; i++) {
+    let xCursor = 0;
+    for (let char of lines[i]) {
+      if (char === " ") {
+        xCursor += fontSize * 0.3; // Skip space
+        continue;
+      }
+
+      let charPoints = font.textToPoints(char, xCursor, i * lineSpacing, fontSize, {
+        sampleFactor: 0.1
+      });
+
+      allPoints = allPoints.concat(charPoints);
+
+      // Estimate character width for spacing (advance width)
+      let bounds = font.textBounds(char, xCursor, 0, fontSize);
+      xCursor += bounds.w + letterSpacing;
+    }
+  }
+
+  return allPoints;
+}
+
+function getCenteringOffsets(points) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+  for (let p of points) {
+    minX = min(minX, p.x);
+    maxX = max(maxX, p.x);
+    minY = min(minY, p.y);
+    maxY = max(maxY, p.y);
+  }
+
+  let offsetX = width / 2 - (minX + (maxX - minX) / 2);
+  let offsetY = height / 2 - (minY + (maxY - minY) / 2);
+  return [offsetX, offsetY];
+}
+
+function createPathsFromPoints(points, offsetX, offsetY) {
+  let currentPath = new Path();
+  let threshold = 20;
+
+  for (let i = 0; i < points.length; i++) {
+    let pt = points[i];
+    let x = pt.x + offsetX;
+    let y = pt.y + offsetY;
+
+    if (i > 0) {
+      let prev = points[i - 1];
+      if (dist(pt.x, pt.y, prev.x, prev.y) > threshold) {
+        if (currentPath.points.length > 1) {
+          paths.push(currentPath);
+        }
+        currentPath = new Path();
+      }
+    }
+
+    currentPath.addPoint(x, y);
+    currentPath.color = color(random(360), random(360), 100); // HSB
+
+    if (debug) {
+      textSize(5);
+      text(i, x, y);
+    }
+  }
+
+  if (currentPath.points.length > 1) {
+    paths.push(currentPath);
+  }
+}
+
+function newVehicle(x, y, assignedPath) {
+  let maxspeed = random(5, 8);
+  let maxforce = 0.3;
+  let v = new Vehicle(x, y, maxspeed, maxforce);
+  v.assignedPath = assignedPath;
+  v.color = 0;
+  vehicles.push(v);
+}
+
