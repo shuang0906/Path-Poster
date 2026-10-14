@@ -16,11 +16,23 @@
 <body>
   <main id="canvas-container"></main>
   <label class="path-toggle">
-    <input id="show-path" type="checkbox" checked>
+    <input id="show-path" type="checkbox" unchecked>
     显示灰色路径区域
+  </label>
+  <fieldset class="collision-options">
+    <legend>粒子运动</legend>
+    <label><input id="collision-enabled" type="radio" name="collision-mode" value="collision" checked> 开启碰撞</label>
+    <label><input type="radio" name="collision-mode" value="repulsion"> 原有排斥（无碰撞）</label>
+  </fieldset>
+  <label class="path-toggle" for="transition-style">切换动态
+    <select id="transition-style">
+      <option value="circles" selected>内圆＋外环 → 跟随路径</option>
+      <option value="samples">内圆＋外环 → 均匀采样点</option>
+    </select>
   </label>
   <section class="particle-controls" aria-label="粒子设置">
     <div class="controls-heading"><strong>粒子设置</strong><output id="particle-total" aria-live="polite"></output></div>
+    <label>???????<span class="count-control"><button id="decrease-particle-total" type="button" aria-label="?????????">?</button><input id="external-particle-total" type="number" min="0" max="10000" step="1" aria-label="???????"><button id="increase-particle-total" type="button" aria-label="?????????">?</button></span></label>
     <div id="particle-types"></div>
     <button id="add-particle-type" type="button">＋ 添加类别</button>
     <p>数量变化后会在灰色区域重新均匀布点；每类独立融合。</p>
@@ -29,6 +41,8 @@
   <script src="circle-tri/path.js"></script>
   <script src="circle-tri/vehicle.js"></script>
   <script src="circle-tri/metaballs.js"></script>
+  <script src="circle-tri/interior.js"></script>
+  <script src="circle-tri/transition.js"></script>
   <script src="circle-tri/sketch.js"></script>
   <script src="circle-tri/controls.js"></script>
   <script>

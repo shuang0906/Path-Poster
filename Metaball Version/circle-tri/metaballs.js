@@ -1,8 +1,19 @@
-﻿// GPU field accumulation inspired by https://shaders.paper.design/metaballs.
+// GPU field accumulation inspired by https://shaders.paper.design/metaballs.
 // Instanced local quads keep the cost proportional to each particle's footprint.
 const metaballSoftness = 0.5;
-const squareRoundness = 0.35; // 0 = sharp square, 1 = circle.
+const squareRoundness = 0.45; // 0 = sharp square, 1 = circle.
+const triangleRoundness = 0.45; // Fraction of triangle inradius.
 let metaballGPU;
+
+function normalizeParticleColor(value) {
+  return value.replace(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/i,
+    (_, r, g, b) => `#${r}${r}${g}${g}${b}${b}`);
+}
+
+function particleColorRGB(value) {
+  const hex = normalizeParticleColor(value);
+  return [1, 3, 5].map(offset => parseInt(hex.slice(offset, offset + 2), 16) / 255);
+}
 
 function setupMetaballs() {
   const canvas = document.createElement('canvas');
@@ -47,6 +58,7 @@ function setupMetaballs() {
     in float halfSize;
     uniform int shape;
     uniform float roundness;
+    uniform float triangleRounding;
     uniform float reachScale;
     out vec4 outputColor;
     float edgeDistance(vec2 p, vec2 a, vec2 b) {
@@ -62,10 +74,19 @@ function setupMetaballs() {
         vec2 q = abs(p)-(halfSize-radius);
         d = length(max(q,0.))+min(max(q.x,q.y),0.)-radius;
       } else {
-        vec2 a=vec2(0.,-halfSize), b=vec2(-halfSize,halfSize), c=vec2(halfSize,halfSize);
-        d = min(edgeDistance(p,a,b),min(edgeDistance(p,b,c),edgeDistance(p,c,a)));
-        bool inside = p.y <= halfSize && p.y >= 2.*abs(p.x)-halfSize;
-        if (inside) d = -d;
+        float h=halfSize*(shape==3 ? 0.5 : 1.);
+        float inradius=2.*halfSize*h/(halfSize+sqrt(halfSize*halfSize+4.*h*h));
+        float radius=inradius*clamp(triangleRounding,0.,0.9);
+        float scale=1.-radius/inradius;
+        vec2 center=vec2(0.,h-inradius);
+        vec2 a=center+(vec2(0.,-h)-center)*scale;
+        vec2 b=center+(vec2(-halfSize,h)-center)*scale;
+        vec2 c=center+(vec2(halfSize,h)-center)*scale;
+        d=min(edgeDistance(p,a,b),min(edgeDistance(p,b,c),edgeDistance(p,c,a)));
+        vec2 original=center+(p-center)/scale;
+        bool inside=original.y<=h && original.y>=2.*h*abs(original.x)/halfSize-h;
+        if(inside) d=-d;
+        d-=radius;
       }
       // At d=0 the field is 0.4, preserving each isolated shape's size.
       float root = 0.8114;
@@ -114,12 +135,18 @@ function setupMetaballs() {
   const compositeVAO=gl.createVertexArray();
   const uniforms = (p,names) => Object.fromEntries(names.map(name=>[name,gl.getUniformLocation(p,name)]));
   metaballGPU={canvas,gl,fieldProgram,compositeProgram,texture,framebuffer,vao,compositeVAO,buffer,
-    fieldUniforms:uniforms(fieldProgram,['resolution','reachScale','shape','roundness']),
+    fieldUniforms:uniforms(fieldProgram,['resolution','reachScale','shape','roundness','triangleRounding']),
     compositeUniforms:uniforms(compositeProgram,['resolution','field','color'])};
 }
 
 function renderMetaballs() {
-  if(!metaballGPU) { for(const vehicle of vehicles) vehicle.render(); return; }
+  if(!metaballGPU) {
+    push();
+    translate(-cameraOffset.x, -cameraOffset.y);
+    for(const vehicle of vehicles) vehicle.render();
+    pop();
+    return;
+  }
   const {canvas,gl,fieldProgram,compositeProgram,texture,framebuffer,vao,compositeVAO,buffer,fieldUniforms:f,compositeUniforms:c}=metaballGPU;
   gl.viewport(0,0,width,height);
   gl.bindFramebuffer(gl.FRAMEBUFFER,null);
@@ -128,22 +155,29 @@ function renderMetaballs() {
   gl.enable(gl.BLEND);
   for(let typeIndex=0;typeIndex<particleTypes.length;typeIndex++) {
     const type=particleTypes[typeIndex];
+    if (type.collisionOnly) continue;
     const group=vehicles.filter(vehicle=>vehicle.typeIndex===typeIndex);
-    const data=new Float32Array(group.length*4);
-    group.forEach((v,i)=>data.set([v.position.x,v.position.y,v.r/2,v.angle],i*4));
     gl.bindFramebuffer(gl.FRAMEBUFFER,framebuffer);
     gl.bindTexture(gl.TEXTURE_2D,null);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.useProgram(fieldProgram);
     gl.bindVertexArray(vao);
     gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
-    gl.bufferData(gl.ARRAY_BUFFER,data,gl.DYNAMIC_DRAW);
     gl.uniform2f(f.resolution,width,height);
     gl.uniform1f(f.reachScale,Math.max(0.1,metaballSoftness*12));
     gl.uniform1f(f.roundness,squareRoundness);
-    gl.uniform1i(f.shape,['circle','triangle','square'].indexOf(type.shape));
+    gl.uniform1f(f.triangleRounding,triangleRoundness);
     gl.blendFunc(gl.ONE,gl.ONE);
-    gl.drawArraysInstanced(gl.TRIANGLES,0,6,group.length);
+    // Both shapes share a field and fuse before this category is composited.
+    ['circle','triangle','square','flat-triangle'].forEach((shape,shapeIndex)=>{
+      const subgroup=group.filter(v=>v.shape===shape);
+      if(!subgroup.length) return;
+      const data=new Float32Array(subgroup.length*4);
+      subgroup.forEach((v,i)=>data.set([v.position.x-cameraOffset.x,v.position.y-cameraOffset.y,particleHalfSize(v),v.angle],i*4));
+      gl.bufferData(gl.ARRAY_BUFFER,data,gl.DYNAMIC_DRAW);
+      gl.uniform1i(f.shape,shapeIndex);
+      gl.drawArraysInstanced(gl.TRIANGLES,0,6,subgroup.length);
+    });
     gl.bindFramebuffer(gl.FRAMEBUFFER,null);
     gl.useProgram(compositeProgram);
     gl.bindVertexArray(compositeVAO);
@@ -151,9 +185,15 @@ function renderMetaballs() {
     gl.bindTexture(gl.TEXTURE_2D,texture);
     gl.uniform1i(c.field,0);
     gl.uniform2f(c.resolution,width,height);
-    gl.uniform3fv(c.color,type.color.match(/\w\w/g).map(value=>parseInt(value,16)/255));
+    gl.uniform3fv(c.color,particleColorRGB(type.color));
     gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
     gl.drawArrays(gl.TRIANGLES,0,3);
   }
   drawingContext.drawImage(canvas,0,0,width,height);
+  push();
+  translate(-cameraOffset.x, -cameraOffset.y);
+  for (const vehicle of vehicles) {
+    if (vehicle.collisionOnly) vehicle.render();
+  }
+  pop();
 }

@@ -114,7 +114,7 @@ class Vehicle {
   // Separation
   // Method checks for nearby boids and steers away
   separate(boids) {
-    let desiredseparation = particleDistance;
+    let desiredseparation = particleSeparationDistance;
     let steer = createVector(0, 0, 0);
     // For every boid in the system, check if it's too close
     for (let i = 0; i < boids.length; i++) {
@@ -139,12 +139,27 @@ class Vehicle {
 
   // Method to update position
   update() {
+    const gathering = Boolean(circleTransition) && (circleTransition.mode !== "samples"
+      || circleTransition.entries.some(entry => entry.vehicle === this && !entry.arrived));
+    const speedLimit = gathering ? circleGatherSpeed : this.maxspeed;
+    if (this.collisionOnly) {
+      // Inward attraction and collision impulses, without contour-following behavior.
+      this.acceleration.limit(gathering ? circleGatherForce : interiorAttractionStrength);
+      this.velocity.add(this.acceleration);
+      this.velocity.mult(0.94);
+      this.velocity.limit(speedLimit);
+      this.position.add(this.velocity);
+      if (this.velocity.magSq() < 0.000001) this.velocity.mult(0);
+      this.acceleration.mult(0);
+      this.smoothedAcceleration.mult(0);
+      return;
+    }
     // Update velocity
-    this.acceleration.limit(this.maxforce);
+    this.acceleration.limit(gathering ? circleGatherForce : this.maxforce);
     this.smoothedAcceleration.lerp(this.acceleration, 1);
     this.velocity.add(this.smoothedAcceleration);
     // Limit speed
-    this.velocity.limit(this.maxspeed);
+    this.velocity.limit(speedLimit);
     this.position.add(this.velocity);
     // Reset accelertion to 0 each cycle
     this.acceleration.mult(0);
@@ -179,9 +194,18 @@ class Vehicle {
     noStroke();
     translate(this.position.x, this.position.y);
     rotate(this.angle);
-    const halfSize = this.r / 2;
-    if (this.shape === "triangle") {
-      triangle(0, -halfSize, -halfSize, halfSize, halfSize, halfSize);
+    const halfSize = particleHalfSize(this);
+    if (this.shape === "triangle" || this.shape === "flat-triangle") {
+      const h=halfSize*(this.shape === "flat-triangle" ? 0.5 : 1);
+      const inradius=2*halfSize*h/(halfSize+Math.hypot(halfSize,2*h));
+      const radius=inradius*Math.max(0,Math.min(0.9,triangleRoundness));
+      const scale=1-radius/inradius;
+      const cy=h-inradius;
+      stroke(this.color);
+      strokeWeight(radius*2);
+      strokeJoin(ROUND);
+      if(radius===0) noStroke();
+      triangle(0,cy+(-h-cy)*scale,-halfSize*scale,cy+(h-cy)*scale,halfSize*scale,cy+(h-cy)*scale);
     } else if (this.shape === "square") {
       rectMode(CENTER);
       rect(0, 0, this.r, this.r, halfSize * Math.max(0, Math.min(1, squareRoundness)));
@@ -213,4 +237,66 @@ function lerpAngle(a, b, t) {
   while (diff > PI) diff -= TWO_PI;
   while (diff < -PI) diff += TWO_PI;
   return a + diff * t;
+}
+
+// Conservative circular bounds also cover rotated polygon corners.
+const triangleScale = 1.25;
+const flatTriangleScale = 2;
+
+function particleHalfSize(vehicle) {
+  return vehicle.r / 2 * (vehicle.shape === "flat-triangle" ? flatTriangleScale : vehicle.shape === "triangle" ? triangleScale : 1);
+}
+function collisionRadius(vehicle) {
+  const half = particleHalfSize(vehicle);
+  if (vehicle.shape === "circle") return half;
+  if (vehicle.shape === "square") {
+    const roundness = Math.max(0, Math.min(1, squareRoundness));
+    return half * (Math.SQRT2 * (1 - roundness) + roundness);
+  }
+  return half * (vehicle.shape === "flat-triangle" ? Math.hypot(1,0.5) : Math.SQRT2);
+}
+
+function resolveParticleCollisions(particles, iterations = 8) {
+  const radii = particles.map(collisionRadius);
+  for (let pass = 0; pass < iterations; pass++) {
+    let maxOverlap = 0;
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const a = particles[i], b = particles[j];
+        const dx = b.position.x - a.position.x;
+        const dy = b.position.y - a.position.y;
+        const distance = Math.hypot(dx, dy);
+        const overlap = radii[i] + radii[j] - distance;
+        if (overlap <= 0) continue;
+        maxOverlap = Math.max(maxOverlap, overlap);
+        // Deterministic direction for coincident centers; no random frame-to-frame jitter.
+        const angle = (i * 0.754877666 + j * 0.569840296) * Math.PI * 2;
+        const nx = distance > 1e-8 ? dx / distance : Math.cos(angle);
+        const ny = distance > 1e-8 ? dy / distance : Math.sin(angle);
+        const correction = overlap * 0.5;
+        a.position.x -= nx * correction;
+        a.position.y -= ny * correction;
+        b.position.x += nx * correction;
+        b.position.y += ny * correction;
+        // Equal masses, zero restitution: preserve tangential movement without bouncing.
+        const closing = (b.velocity.x - a.velocity.x) * nx + (b.velocity.y - a.velocity.y) * ny;
+        if (closing < 0) {
+          a.velocity.x += nx * closing * 0.5;
+          a.velocity.y += ny * closing * 0.5;
+          b.velocity.x -= nx * closing * 0.5;
+          b.velocity.y -= ny * closing * 0.5;
+        }
+        for (const [body, sign] of [[a, 1], [b, -1]]) {
+          const acceleration = body.smoothedAcceleration;
+          if (!acceleration) continue;
+          const inward = (acceleration.x * nx + acceleration.y * ny) * sign;
+          if (inward > 0) {
+            acceleration.x -= nx * sign * inward;
+            acceleration.y -= ny * sign * inward;
+          }
+        }
+      }
+    }
+    if (maxOverlap < 0.01) break;
+  }
 }

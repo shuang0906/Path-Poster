@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <title>内圆＋外环 → 跟随路径</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.1/p5.js"></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/opentype.js/1.3.4/opentype.min.js
+"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.1/addons/p5.sound.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/p5.capture@1.6.1/dist/p5.capture.umd.min.js"></script>
+  <link rel="stylesheet" type="text/css" href="style.css">
+  <meta charset="utf-8" />
+
+</head>
+
+<body>
+  <main id="canvas-container"></main>
+  <label class="path-toggle">
+    <input id="show-path" type="checkbox" unchecked>
+    显示灰色路径区域un
+  </label>
+  <fieldset class="collision-options">
+    <legend>粒子运动</legend>
+    <label><input id="collision-enabled" type="radio" name="collision-mode" value="collision" checked> 开启碰撞</label>
+    <label><input type="radio" name="collision-mode" value="repulsion"> 原有排斥（无碰撞）</label>
+  </fieldset>
+  <p class="path-toggle">内圆＋外环 → 跟随路径</p>
+  <label class="path-toggle" for="interior-initial-speed">内部粒子初始速度
+    <select id="interior-initial-speed"><option value="moving">有初始速度</option><option value="still" selected>无初始速度</option></select>
+  </label>
+  <section class="particle-controls" aria-label="粒子设置">
+    <div class="controls-heading"><strong>粒子设置</strong><output id="particle-total" aria-live="polite"></output></div>
+    <label>外部粒子总数量<span class="count-control"><button id="decrease-particle-total" type="button" aria-label="外部粒子总数量">−</button><input id="external-particle-total" type="number" min="0" max="10000" step="1" aria-label="外部粒子总数量"><button id="increase-particle-total" type="button" aria-label="外部粒子总数量">＋</button></span></label>
+    <label for="external-palette">外部粒子色板<select id="external-palette"><option value="original">原来色板</option><option value="hexo" selected>HEXO 色板</option></select></label>
+    <div id="particle-types"></div>
+    <button id="add-particle-type" type="button">＋ 添加类别</button>
+    <p>数量变化后会在灰色区域重新均匀布点；每类独立融合。</p>
+  </section>
+
+  <script src="circle-tri/path.js"></script>
+  <script src="circle-tri/vehicle.js"></script>
+  <script src="circle-tri/metaballs.js"></script>
+  <script src="circle-tri/interior.js"></script>
+  <script src="circle-tri/transition.js"></script>
+  <script src="circle-tri/sketch.js"></script>
+  <script src="circle-tri/controls.js"></script>
+  <script>
+    P5Capture.setDefaultOptions({ framerate: SIMULATION_FPS });
+    window.addEventListener("keydown", (event) => {
+      if (event.target.matches("input, select, button, textarea")) return;
+      if (event.key.toLowerCase() !== "c" || event.repeat) return;
+
+      const capture = P5Capture.getInstance();
+      if (capture.state === "idle") {
+        capture.start({ framerate: SIMULATION_FPS, duration: 300 });
+      } else {
+        capture.stop();
+      }
+    });
+  </script>
+</body>
+
+</html>
