@@ -1,0 +1,48 @@
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+.path-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  margin: 12px 16px;
+  color: #222;
+  font: 14px sans-serif;
+  cursor: pointer;
+}
+
+canvas {
+  display: block;
+}
+
+.particle-controls { margin: 16px; max-width: 540px; font: 13px sans-serif; color: #222; }
+.controls-heading { display: flex; justify-content: space-between; margin-bottom: 12px; }
+.particle-row { display: flex; align-items: end; gap: 10px; padding: 10px 0; border-top: 1px solid #e5e5e5; flex-wrap: wrap; }
+.particle-row label { display: flex; flex-direction: column; gap: 5px; }
+.particle-controls button, .particle-controls select, .particle-controls input { box-sizing: border-box; min-height: 32px; font: inherit; border: 1px solid #ccc; border-radius: 5px; background: #fff; }
+.particle-controls button { padding: 5px 9px; cursor: pointer; }
+.particle-controls button:hover { background: #eee; }
+.particle-controls input[type="color"] { width: 40px; padding: 2px; cursor: pointer; }
+.count-control { display: flex; gap: 3px; }
+.count-control input { width: 62px; padding: 4px; }
+.type-number { align-self: center; color: #777; }
+.particle-controls p, #particle-total { color: #666; }
+#add-particle-type { margin-top: 12px; }
+
+.collision-options { margin: 12px 16px; padding: 10px 12px; width: fit-content; border: 1px solid #ddd; border-radius: 6px; font: 14px sans-serif; color: #222; }
+.collision-options label { display: inline-flex; align-items: center; gap: 4px; margin: 4px 12px 4px 0; cursor: pointer; }
+
+.particle-row .mix-ratio { width: 100px; min-height: 20px; }
+
+.initialize-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+.initialize-controls input { width: 140px; padding: 4px 8px; }
+#snapshot-status { flex-basis: 100%; color: #666; line-height: 1.5; }
+
+/* Identity V2 controls */
+.identity-controls {display:grid;gap:10px;padding:15px;margin:14px 0;border:1px solid #d3d3d3;background:#f9f9f9}
+.identity-controls h3,.identity-controls p {margin:0}
+.identity-controls label {display:grid;grid-template-columns:145px 45px minmax(90px,1fr);gap:10px;align-items:center;font-size:13px}
+.identity-controls input[type=range] {width:100%}
