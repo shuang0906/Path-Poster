@@ -17,6 +17,8 @@ function applyExternalPalette() {
 }
 
 function rebuildParticles() {
+  jsonReturnTransition = null;
+  initialLayoutPending = false;
   circleTransition = null;
   vehicles = [];
   spawnConfiguredParticles();

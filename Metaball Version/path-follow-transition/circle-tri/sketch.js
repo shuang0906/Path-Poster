@@ -7,7 +7,7 @@ let SizeF = 0.4;
 const particleSize = 36;
 const particleSpawnDistance = Math.max(1, particleSize); // Initial spawn spacing, in pixels.
 const particleSeparationDistance = Math.max(1, particleSize/1.5); // Movement separation distance, in pixels.
-const pathRadius = 30; // Before scazling; full path width = pathRadius * SizeF * 2.
+const pathRadius = 40; // Before scazling; full path width = pathRadius * SizeF * 2.
 
 const pathLetters = ["R", "O", "A", "M"];
 const letterSnapshots = {};
@@ -77,7 +77,6 @@ function setup() {
   newPaths(); // Generate multiple paths
   
   initializeSnapshotParticles(letterSnapshots[pathLetters[pathLetterIndex]]);
-  placeInitialCircleParticles();
   setupMetaballs();
   particleTypes.forEach((type, index) => {
     type.count = vehicles.filter(vehicle => vehicle.typeIndex === index).length;
@@ -159,21 +158,25 @@ function draw() {
   simulationTime = simulationFrame * SIMULATION_STEP_MS;
   background("#fff");
   const gathering = updateCircleTransition();
-  if (!gathering) {
+  const returning = !gathering && updateJsonReturn();
+  if (!gathering && !returning) {
   // Debug drawing and contours use world coordinates; the GPU receives camera-relative positions.
   push();
   translate(-cameraOffset.x, -cameraOffset.y);
   for (const v of vehicles) {
-    if (v.jsonTarget) steerToJsonTarget(v);
-    else if (v.collisionOnly) applyInteriorAttraction(v);
+    if (v.collisionOnly) applyInteriorAttraction(v);
     else v.applyBehaviors(vehicles, v.assignedPath);
   }
   applyOutwardTransition();
+  const resumeWeight = physicsResumeWeight();
+  for (const v of vehicles) v.acceleration.mult(resumeWeight);
   pop();
   }
-  // Integration and collisions stay active during both gathering and holding.
-  for (const v of vehicles) v.update();
-  if (document.getElementById("collision-enabled").checked) resolveParticleCollisions(vehicles);
+  // The return curve controls position and velocity; live physics resumes at its endpoint.
+  if (!returning) {
+    for (const v of vehicles) v.update();
+    if (document.getElementById("collision-enabled").checked) resolveContinuousCollisions();
+  }
   updatePathCamera();
   push();
   translate(-cameraOffset.x, -cameraOffset.y);
@@ -236,7 +239,6 @@ function newPaths() {
   let [offsetX, offsetY] = getCenteringOffsets(points);
 
   createPathsFromPoints(points, offsetX, offsetY + pathStep * height * 0);
-  removeInteriorPaths();
   letterOutlinePaths = paths;
   const outlinePoints = letterOutlinePaths.flatMap(path => path.points);
   if (outlinePoints.length) {
@@ -252,7 +254,13 @@ function newPaths() {
     });
   } else interiorBoundaryPaths = [];
   const outwardOffset = pathRadius * SizeF * (2 * pathOutsideRatio - 1);
-  paths = letterOutlinePaths.map(path => offsetContourPath(path, outwardOffset));
+  paths = letterOutlinePaths.map(path => {
+    // Hole boundaries offset toward the hole, outer boundaries away from the glyph.
+    const depth = letterOutlinePaths.filter(other => other !== path
+      && path.points.length > 0
+      && path.points.every(point => pointInsideContour(point, other))).length;
+    return offsetContourPath(path, depth % 2 ? -outwardOffset : outwardOffset);
+  });
   refreshInteriorAttractionTargets();
 }
 
